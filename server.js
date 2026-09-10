@@ -9,8 +9,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// URL de tu Web App de Google Apps Script
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyGFVbo_FHi9YWavcwQsWVFocyFROvkgdN6bv7OixsD5NGZs5HsrK_95g60NWMfLN08/exec';
+// URL de tu Web App de Google Apps Script (Lee GOOGLE_SCRIPT_URL o APPS_SCRIPT_URL)
+const APPS_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL || process.env.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyGFVbo_FHi9YWavcwQsWVFocyFROvkgdN6bv7OixsD5NGZs5HsrK_95g60NWMfLN08/exec';
 
 // Ruta Puente (Proxy API) para conectar la app web con Google Sheets
 app.post('/api/execute', async (req, res) => {
@@ -28,8 +28,8 @@ app.post('/api/execute', async (req, res) => {
   }
 });
 
-// Redirigir cualquier otra solicitud al frontend
-app.get('*', (req, res) => {
+// Redirigir cualquier otra solicitud al frontend (Sintaxis compatible con Express 5)
+app.get('(.*)', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
