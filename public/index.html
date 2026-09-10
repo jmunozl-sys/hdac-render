@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedControl Pro - Sistema Hospitalario Integral</title>
+  
+  <!-- CSS CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  
+  <style>
+    body { 
+      background-color: #f1f5f9; 
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+    }
+    .sidebar { 
+      min-height: 100vh; 
+      background-color: #0f172a; 
+      color: #fff; 
+    }
+    .sidebar .nav-link { 
+      color: #94a3b8; 
+      padding: 10px 16px; 
+      font-weight: 500; 
+      border-radius: 6px; 
+      margin: 2px 10px; 
+      font-size: 0.9rem; 
+      transition: all 0.2s; 
+    }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { 
+      background-color: #0284c7; 
+      color: #ffffff; 
+    }
+    .stat-card { 
+      border: none; 
+      border-radius: 12px; 
+      box-shadow: 0 4px 10px rgba(0,0,0,0.03); 
+    }
+    .table-container { 
+      background: #ffffff; 
+      border-radius: 12px; 
+      padding: 20px; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03); 
+      border: 1px solid #e2e8f0; 
+    }
+
+    #mapaGoogle {
+      height: 250px;
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      margin-top: 6px;
+      background: #e2e8f0;
+    }
+    
+    #mapaHospital {
+      height: 380px;
+      width: 100%;
+      border-radius: 8px;
+      background: #e2e8f0;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 220px;
+      width: 100%;
+    }
+
+    .is-fullscreen {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 99999 !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+    }
+
+    .marker-label { background: transparent; border: none; }
+    .marker-circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    }
+    .marker-hospital { background-color: #ef4444; }
+    .marker-paciente { background-color: #10b981; }
+    .leaflet-popup-content { font-family: 'Segoe UI', system-ui, sans-serif; }
+    .leaflet-container { z-index: 1; }
+
+    @media print {
+      body * { visibility: hidden !important; }
+      #modalBoleta, #modalBoleta * { visibility: visible !important; }
+      #modalBoleta {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        background: white !important;
+      }
+      .modal-dialog { max-width: 100% !important; margin: 0 !important; }
+      .modal-content { border: none !important; box-shadow: none !important; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container-fluid">
+  <div class="row">
+    
+    <!-- MENÚ LATERAL -->
+    <div class="col-md-3 col-lg-2 sidebar p-0">
+      <div class="d-flex align-items-center p-3 text-white border-bottom border-secondary">
+        <i class="fa-solid fa-hospital me-2 text-info fs-4"></i>
+        <span class="fs-5 fw-bold">HDAC</span>
+      </div>
+      <ul class="nav flex-column mt-2">
+        <li class="nav-item"><a class="nav-link active" href="#" onclick="navegar('dashboard', this)"><i class="fa-solid fa-chart-line me-2"></i> Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('citas', this)"><i class="fa-solid fa-calendar-check me-2"></i> Citas Médicas</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('pacientes', this)"><i class="fa-solid fa-hospital-user me-2"></i> Pacientes</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('medicos', this)"><i class="fa-solid fa-user-doctor me-2"></i> Personal Médico</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('historial', this)"><i class="fa-solid fa-file-medical me-2"></i> Historial Clínico</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('facturacion', this)"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Caja y Facturación</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('triaje', this)"><i class="fa-solid fa-heart-pulse me-2"></i> Triaje / Vitales</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('inventario', this)"><i class="fa-solid fa-pills me-2"></i> Farmacia e Insumos</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('laboratorio', this)"><i class="fa-solid fa-vial me-2"></i> Laboratorio</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('hospitalizacion', this)"><i class="fa-solid fa-bed me-2"></i> Hospitalización</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" onclick="navegar('notificaciones', this)"><i class="fa-solid fa-bell me-2"></i> Notificaciones</a></li>
+      </ul>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="col-md-9 col-lg-10 p-4">
+      <div id="contenedorAlertas"></div>
+
+      <!-- DASHBOARD INTEGRAL CON MAPA DE RUTAS -->
+      <div id="sec-dashboard" class="seccion-modulo">
+        <h3 class="fw-bold mb-4">Panel Control Hospitalario</h3>
+        
+        <!-- Tarjetas Superiores -->
+        <div class="row g-3 mb-4">
+          <div class="col-md-4 col-lg-2"><div class="card stat-card bg-white p-3 border-start border-primary border-4"><span class="text-muted small fw-bold">PACIENTES</span><h3 id="dash-pacientes" class="fw-bold text-primary mb-0">0</h3></div></div>
+          <div class="col-md-4 col-lg-2"><div class="card stat-card bg-white p-3 border-start border-success border-4"><span class="text-muted small fw-bold">MÉDICOS</span><h3 id="dash-medicos" class="fw-bold text-success mb-0">0</h3></div></div>
+          <div class="col-md-4 col-lg-2"><div class="card stat-card bg-white p-3 border-start border-warning border-4"><span class="text-muted small fw-bold">CITAS PEND.</span><h3 id="dash-citas-pen" class="fw-bold text-warning mb-0">0</h3></div></div>
+          <div class="col-md-4 col-lg-2"><div class="card stat-card bg-white p-3 border-start border-info border-4"><span class="text-muted small fw-bold">INGRESOS ($)</span><h3 id="dash-ingresos" class="fw-bold text-info mb-0">$0</h3></div></div>
+          <div class="col-md-4 col-lg-2"><div class="card stat-card bg-white p-3 border-start border-danger border-4"><span class="text-muted small fw-bold">CAMAS OCUP.</span><h3 id="dash-camas" class="fw-bold text-danger mb-0">0</h3></div></div>
+          <div class="col-md-4 col-lg-2"><div class="card stat-card bg-white p-3 border-start border-secondary border-4"><span class="text-muted small fw-bold">LAB PEND.</span><h3 id="dash-lab" class="fw-bold text-secondary mb-0">0</h3></div></div>
+        </div>
+
+        <div class="row g-4">
+          <!-- MAPA INTERACTIVO -->
+          <div class="col-lg-8">
+            <div class="card stat-card mb-4">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                  <h5 class="card-title fw-bold text-secondary mb-0"><i class="fa-solid fa-route text-primary me-2"></i>Ruta Hospital - Domicilio del Paciente</h5>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="btnMapaCalor" onclick="toggleMapaCalor()">
+                      <i class="fa-solid fa-fire me-1"></i> Mapa de Calor
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="iniciarNavegacionGPS()">
+                      <i class="fa-solid fa-diamond-turn-right me-1"></i> Iniciar Navegación GPS
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="togglePantallaCompleta('mapaHospital')">
+                      <i class="fa-solid fa-expand me-1"></i> Pantalla Grande
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="selectPacienteRuta" class="form-label small fw-bold text-muted">Seleccionar Paciente para Trazar Trayectoria:</label>
+                  <select id="selectPacienteRuta" onchange="calcularRutaPaciente()" class="form-select">
+                    <option value="">-- Selecciona un paciente para ver su ubicación --</option>
+                  </select>
+                </div>
+
+                <div id="mapaHospital" class="bg-light border"></div>
+                <div class="d-flex gap-3 mt-2 small text-muted">
+                  <span><span class="marker-circle marker-hospital d-inline-flex" style="width:16px;height:16px;font-size:9px;vertical-align:middle;">H</span> Hospital (Origen Fijo: Yanacancha)</span>
+                  <span><span class="marker-circle marker-paciente d-inline-flex" style="width:16px;height:16px;font-size:9px;vertical-align:middle;">P</span> Paciente (Destino)</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="card stat-card">
+                  <div class="card-body">
+                    <h6 class="fw-bold text-secondary text-center mb-3">Estado de Citas</h6>
+                    <div class="chart-container"><canvas id="graficoCitas"></canvas></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="card stat-card">
+                  <div class="card-body">
+                    <h6 class="fw-bold text-secondary text-center mb-3">Ingresos por Método</h6>
+                    <div class="chart-container"><canvas id="graficoIngresos"></canvas></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANELS DE ALERTAS -->
+          <div class="col-lg-4">
+            <div class="card stat-card mb-4 border-warning">
+              <div class="card-header bg-warning text-dark fw-bold">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i> Stock Bajo en Farmacia
+              </div>
+              <ul class="list-group list-group-flush" id="listaStockBajo"></ul>
+            </div>
+
+            <div class="card stat-card border-info">
+              <div class="card-header bg-info text-white fw-bold">
+                <i class="fa-solid fa-vial-circle-check me-1"></i> Laboratorios en Proceso
+              </div>
+              <ul class="list-group list-group-flush" id="listaLabProceso"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULOS DE TABLAS -->
+      <div id="sec-citas" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Gestión de Citas</h4><button class="btn btn-primary" onclick="abrirNuevo('modalCita', 'Agendar Cita')"><i class="fa-solid fa-plus me-1"></i> Nueva Cita</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Paciente</th><th>Médico</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Notificaciones</th><th>Acciones</th></tr></thead><tbody id="tabla-citas"></tbody></table></div>
+      </div>
+
+      <div id="sec-pacientes" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Pacientes Registrados</h4><button class="btn btn-primary" onclick="abrirNuevo('modalPaciente', 'Nuevo Paciente')"><i class="fa-solid fa-plus me-1"></i> Registrar Paciente</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Nombre</th><th>DNI</th><th>Teléfono</th><th>Email</th><th>Lat/Lng</th><th>Acciones</th></tr></thead><tbody id="tabla-pacientes"></tbody></table></div>
+      </div>
+
+      <div id="sec-medicos" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Personal Médico</h4><button class="btn btn-primary" onclick="abrirNuevo('modalMedico', 'Nuevo Médico')"><i class="fa-solid fa-plus me-1"></i> Nuevo Médico</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Nombre</th><th>Especialidad</th><th>Teléfono</th><th>Acciones</th></tr></thead><tbody id="tabla-medicos"></tbody></table></div>
+      </div>
+
+      <div id="sec-historial" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Historial Clínico Digital</h4><button class="btn btn-primary" onclick="abrirNuevo('modalHistorial', 'Registrar Historial Médico')"><i class="fa-solid fa-plus me-1"></i> Nueva Consulta</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Paciente</th><th>Médico</th><th>Fecha</th><th>Diagnóstico</th><th>Tratamiento</th><th>Acciones</th></tr></thead><tbody id="tabla-historial"></tbody></table></div>
+      </div>
+
+      <div id="sec-facturacion" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Caja y Facturación</h4><button class="btn btn-primary" onclick="abrirNuevo('modalFactura', 'Emitir Cobro')"><i class="fa-solid fa-plus me-1"></i> Emitir Cobro</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Paciente</th><th>Concepto</th><th>Monto ($)</th><th>Método</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="tabla-facturacion"></tbody></table></div>
+      </div>
+
+      <div id="sec-triaje" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Triaje y Signos Vitales</h4><button class="btn btn-primary" onclick="abrirNuevo('modalTriaje', 'Registro de Triaje')"><i class="fa-solid fa-plus me-1"></i> Nuevo Triaje</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Paciente</th><th>Presión Art.</th><th>Temp.</th><th>Peso</th><th>Sat. O2</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="tabla-triaje"></tbody></table></div>
+      </div>
+
+      <div id="sec-inventario" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Farmacia e Inventario</h4><button class="btn btn-primary" onclick="abrirNuevo('modalInventario', 'Registrar Insumo / Medicamento')"><i class="fa-solid fa-plus me-1"></i> Añadir Insumo</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Medicamento/Insumo</th><th>Categoría</th><th>Stock</th><th>Precio ($)</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tabla-inventario"></tbody></table></div>
+      </div>
+
+      <div id="sec-laboratorio" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Laboratorio y Exámenes</h4><button class="btn btn-primary" onclick="abrirNuevo('modalLaboratorio', 'Orden de Laboratorio')"><i class="fa-solid fa-plus me-1"></i> Orden de Examen</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Paciente</th><th>Examen</th><th>Estado</th><th>Resultado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="tabla-laboratorio"></tbody></table></div>
+      </div>
+
+      <div id="sec-hospitalizacion" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3"><h4 class="fw-bold">Hospitalización y Camas</h4><button class="btn btn-primary" onclick="abrirNuevo('modalHospitalizacion', 'Ingreso a Hospitalización')"><i class="fa-solid fa-plus me-1"></i> Ingreso a Cama</button></div>
+        <div class="table-container"><table class="table table-hover"><thead><tr><th>ID</th><th>Paciente</th><th>Cama / Hab.</th><th>Diagnóstico Ingreso</th><th>Estado</th><th>Fecha Ingreso</th><th>Acciones</th></tr></thead><tbody id="tabla-hospitalizacion"></tbody></table></div>
+      </div>
+
+      <!-- MÓDULO DE NOTIFICACIONES -->
+      <div id="sec-notificaciones" class="seccion-modulo d-none">
+        <div class="d-flex justify-content-between mb-3">
+          <h4 class="fw-bold">Centro de Notificaciones</h4>
+          <button class="btn btn-outline-secondary btn-sm" onclick="cargarNotificaciones()"><i class="fa-solid fa-rotate me-1"></i> Actualizar</button>
+        </div>
+        <p class="text-muted small mb-3">Cada botón arma el mensaje automáticamente con los datos reales del paciente: próxima cita, saldo pendiente y exámenes en proceso.</p>
+        <div class="table-container">
+          <table class="table table-hover align-middle">
+            <thead><tr><th>Paciente</th><th>Próxima Cita</th><th>Facturación</th><th>Laboratorio</th><th>Notificar</th></tr></thead>
+            <tbody id="tabla-notificaciones"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PACIENTE -->
+<div class="modal fade" id="modalPaciente" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">Nuevo Paciente</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form onsubmit="guardarForm(event, 'registrarPaciente', 'Pacientes', 'modalPaciente')">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">DNI / Cédula</label>
+            <input type="text" id="pDni" class="form-control" maxlength="8" oninput="buscarDniReniec(this.value)" placeholder="Ingrese 8 dígitos" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Nombre Completo</label>
+            <input type="text" id="pNom" class="form-control" required>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-bold">Teléfono</label>
+              <input type="text" id="pTel" class="form-control" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-bold">Email</label>
+              <input type="email" id="pEma" class="form-control" required>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label fw-bold mb-0"><i class="fa-solid fa-map-location-dot text-primary me-1"></i> Ubicación Geográfica</label>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="togglePantallaCompleta('mapaGoogle')">
+                <i class="fa-solid fa-expand me-1"></i> Pantalla Grande
+              </button>
+            </div>
+            <div class="input-group mb-2">
+              <input type="text" id="pBuscarDir" class="form-control" placeholder="Escriba la dirección o sector (ej. Yanacancha) y presione Buscar...">
+              <button type="button" class="btn btn-outline-primary" onclick="buscarDireccionTexto(document.getElementById('pBuscarDir').value)">
+                <i class="fa-solid fa-magnifying-glass"></i> Buscar
+              </button>
+            </div>
+            <small class="text-muted d-block mb-2">También puede hacer clic en el mapa o arrastrar el marcador para ajustar la ubicación.</small>
+            
+            <div id="mapaGoogle"></div>
+            <div class="row mt-2">
+              <div class="col-6">
+                <label class="form-label small text-muted">Latitud</label>
+                <input type="text" id="pLat" class="form-control form-control-sm bg-light" readonly placeholder="-10.668200">
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-muted">Longitud</label>
+                <input type="text" id="pLng" class="form-control form-control-sm bg-light" readonly placeholder="-76.251800">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Guardar Paciente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODALES SECUNDARIOS -->
+<div class="modal fade" id="modalCita" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Agendar Cita</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarCita', 'Citas', 'modalCita')"><div class="modal-body"><div class="mb-3"><label class="form-label">Paciente</label><select id="cPac" class="form-select sel-pacientes" required></select></div><div class="mb-3"><label class="form-label">Médico</label><select id="cMed" class="form-select sel-medicos" required></select></div><div class="row"><div class="col mb-3"><label class="form-label">Fecha</label><input type="date" id="cFec" class="form-control" required></div><div class="col mb-3"><label class="form-label">Hora</label><input type="time" id="cHor" class="form-control" required></div></div><div class="mb-3"><label class="form-label">Estado</label><select id="cEst" class="form-select"><option value="Pendiente">Pendiente</option><option value="Completada">Completada</option><option value="Cancelada">Cancelada</option></select></div><div class="mb-3"><label class="form-label">Motivo</label><input type="text" id="cMot" class="form-control" required></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+<div class="modal fade" id="modalMedico" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Nuevo Médico</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarMedico', 'Medicos', 'modalMedico')"><div class="modal-body"><div class="mb-3"><label class="form-label">Nombre Completo</label><input type="text" id="mNom" class="form-control" required></div><div class="mb-3"><label class="form-label">Especialidad</label><input type="text" id="mEsp" class="form-control" required></div><div class="mb-3"><label class="form-label">Teléfono</label><input type="text" id="mTel" class="form-control" required></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+<div class="modal fade" id="modalHistorial" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Registrar Historial Médico</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarHistorial', 'Historial', 'modalHistorial')"><div class="modal-body"><div class="mb-3"><label class="form-label">Paciente</label><select id="hPac" class="form-select sel-pacientes" required></select></div><div class="mb-3"><label class="form-label">Médico Tratante</label><select id="hMed" class="form-select sel-medicos" required></select></div><div class="mb-3"><label class="form-label">Diagnóstico</label><textarea id="hDia" class="form-control" required></textarea></div><div class="mb-3"><label class="form-label">Tratamiento / Receta</label><textarea id="hTra" class="form-control" required></textarea></div><div class="mb-3"><label class="form-label">Notas Adicionales</label><input type="text" id="hNot" class="form-control"></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+<div class="modal fade" id="modalFactura" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Emitir Cobro</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarFactura', 'Facturacion', 'modalFactura')"><div class="modal-body"><div class="mb-3"><label class="form-label">Paciente</label><select id="fPac" class="form-select sel-pacientes" required></select></div><div class="mb-3"><label class="form-label">Concepto</label><input type="text" id="fCon" class="form-control" placeholder="Ej. Consulta Médica" required></div><div class="row"><div class="col mb-3"><label class="form-label">Monto ($)</label><input type="number" step="0.01" id="fMon" class="form-control" required></div><div class="col mb-3"><label class="form-label">Método Pago</label><select id="fMet" class="form-select" required><option value="Efectivo">Efectivo</option><option value="Tarjeta">Tarjeta</option><option value="Transferencia">Transferencia</option></select></div></div><div class="mb-3"><label class="form-label">Estado</label><select id="fEst" class="form-select" required><option value="Pagado">Pagado</option><option value="Pendiente">Pendiente</option></select></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+<div class="modal fade" id="modalTriaje" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Registro de Triaje</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarTriaje', 'Triaje', 'modalTriaje')"><div class="modal-body"><div class="mb-3"><label class="form-label">Paciente</label><select id="tPac" class="form-select sel-pacientes" required></select></div><div class="row"><div class="col mb-3"><label class="form-label">Presión Art.</label><input type="text" id="tPre" class="form-control" placeholder="120/80" required></div><div class="col mb-3"><label class="form-label">Temp (°C)</label><input type="number" step="0.1" id="tTem" class="form-control" required></div></div><div class="row"><div class="col mb-3"><label class="form-label">Peso (kg)</label><input type="number" step="0.1" id="tPes" class="form-control" required></div><div class="col mb-3"><label class="form-label">Talla (cm)</label><input type="number" id="tTal" class="form-control" required></div><div class="col mb-3"><label class="form-label">Sat O2 (%)</label><input type="number" id="tSat" class="form-control" required></div></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+<div class="modal fade" id="modalInventario" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Registrar Insumo / Medicamento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarMedicamento', 'Inventario', 'modalInventario')"><div class="modal-body"><div class="mb-3"><label class="form-label">Medicamento / Insumo</label><input type="text" id="iMed" class="form-control" required></div><div class="mb-3"><label class="form-label">Categoría</label><input type="text" id="iCat" class="form-control" required></div><div class="row"><div class="col mb-3"><label class="form-label">Stock Inicial</label><input type="number" id="iSto" class="form-control" required></div><div class="col mb-3"><label class="form-label">Precio Unitario ($)</label><input type="number" step="0.01" id="iPre" class="form-control" required></div></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+<div class="modal fade" id="modalLaboratorio" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Orden de Laboratorio</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarExamen', 'Laboratorio', 'modalLaboratorio')"><div class="modal-body"><div class="mb-3"><label class="form-label">Paciente</label><select id="lPac" class="form-select sel-pacientes" required></select></div><div class="mb-3"><label class="form-label">Examen Solicitado</label><input type="text" id="lExa" class="form-control" required></div><div class="mb-3"><label class="form-label">Estado</label><select id="lEst" class="form-select"><option value="Pendiente">Pendiente</option><option value="En Proceso">En Proceso</option><option value="Completado">Completado</option></select></div><div class="mb-3"><label class="form-label">Resultado</label><textarea id="lRes" class="form-control" placeholder="Resultado del laboratorio..."></textarea></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+<div class="modal fade" id="modalHospitalizacion" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5 class="modal-title">Ingreso a Hospitalización</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><form onsubmit="guardarForm(event, 'registrarHospitalizacion', 'Hospitalizacion', 'modalHospitalizacion')"><div class="modal-body"><div class="mb-3"><label class="form-label">Paciente</label><select id="hspPac" class="form-select sel-pacientes" required></select></div><div class="mb-3"><label class="form-label">Cama / Habitación</label><input type="text" id="hspCam" class="form-control" required></div><div class="mb-3"><label class="form-label">Diagnóstico de Ingreso</label><input type="text" id="hspDia" class="form-control" required></div><div class="mb-3"><label class="form-label">Estado Cama</label><select id="hspEst" class="form-select"><option value="Ocupada">Ocupada</option><option value="Alta">Alta Médica</option><option value="Reservada">Reservada</option></select></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Guardar</button></div></form></div></div></div>
+
+<!-- MODAL BOLETA DE VENTA -->
+<div class="modal fade" id="modalBoleta" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+    <div class="modal-content p-3" style="border-radius: 12px; border: 1px solid #cbd5e1;">
+      <div style="text-align: center;" class="mb-3">
+        <h3 style="margin: 0; color: #0284c7; font-weight: 800;">MedControl Pro</h3>
+        <p style="margin: 0; font-size: 11px; color: #64748b; font-weight: 600;">CENTRO HOSPITALARIO INTEGRAL</p>
+        <p style="margin: 0; font-size: 11px; color: #94a3b8;">RUC: 20123456789</p>
+        <div class="mt-2 py-1" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px;">
+          <strong style="font-size: 12px; color: #334155;">COMPROBANTE DE PAGO</strong>
+        </div>
+      </div>
+      <div style="font-size: 13px; color: #334155; line-height: 1.8;">
+        <div class="d-flex justify-content-between"><span class="text-muted">N° Comprobante:</span><strong id="bolId" class="text-dark">-</strong></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Fecha:</span><span id="bolFecha">-</span></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Paciente:</span><strong id="bolPaciente" class="text-dark">-</strong></div>
+        <div class="d-flex justify-content-between"><span class="text-muted">Método de Pago:</span><span id="bolMetodo">-</span></div>
+        <hr style="border-top: 1px dashed #cbd5e1; margin: 10px 0;">
+        <table class="w-100" style="font-size: 12px;">
+          <thead><tr class="text-muted"><th>Concepto</th><th class="text-end">Monto</th></tr></thead>
+          <tbody><tr><td id="bolConcepto" class="fw-medium text-dark py-1">-</td><td id="bolMontoTabla" class="text-end fw-bold text-dark py-1">$0.00</td></tr></tbody>
+        </table>
+        <hr style="border-top: 1px dashed #cbd5e1; margin: 10px 0;">
+        <div class="d-flex justify-content-between align-items-center fs-6">
+          <strong>TOTAL ATENDIDO:</strong>
+          <strong class="text-primary fs-5">$<span id="bolMontoTotal">0.00</span></strong>
+        </div>
+      </div>
+      <div class="text-center mt-3 text-muted" style="font-size: 11px;"><p class="m-0">¡Gracias por su preferencia!</p></div>
+      <div class="modal-footer no-print px-0 pb-0 pt-3 border-top-0 d-flex justify-content-between">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-success btn-sm" onclick="imprimirBoleta()"><i class="fa-solid fa-print me-1"></i> Imprimir / PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPTS LIBRERÍAS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<!-- LÓGICA JAVASCRIPT ADAPTADA A EXPRESS -->
+<script>
+  let seccionActual = 'dashboard';
+  let datosModulos = {}; 
+  let idEditando = null;  
+  
+  let mapForm = null;
+  let markerForm = null;
+
+  let mapAdmin = null;
+  let markerHospital = null;
+  let markerPaciente = null;
+  let rutaLayer = null;
+  let listaPacientesRuta = [];
+
+  let heatLayer = null;
+  let heatActivo = false;
+
+  let chartCitas = null;
+  let chartIngresos = null;
+
+  const COORDENADAS_HOSPITAL = { lat: -10.668200, lng: -76.251800 }; 
+
+  // FUNCIÓN PUENTE PARA COMUNICACIÓN CON EXPRESS
+  async function callApi(accion, datos = {}) {
+    try {
+      const resp = await fetch('/api/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion, datos })
+      });
+      return await resp.json();
+    } catch (e) {
+      console.error('Error al llamar API:', e);
+      return { exito: false, mensaje: 'Error de comunicación con el servidor.' };
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    cargarDashboard();
+    cargarCombos();
+
+    const modalPac = document.getElementById('modalPaciente');
+    if (modalPac) {
+      modalPac.addEventListener('shown.bs.modal', () => {
+        if (!mapForm) {
+          initMapForm();
+        } else {
+          setTimeout(() => mapForm.invalidateSize(), 200);
+        }
+      });
+    }
+  });
+
+  function togglePantallaCompleta(idElemento) {
+    const el = document.getElementById(idElemento);
+    if (!el) return;
+
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) { el.requestFullscreen(); }
+      else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }
+      else if (el.msRequestFullscreen) { el.msRequestFullscreen(); }
+      else { el.classList.toggle('is-fullscreen'); }
+    } else {
+      if (document.exitFullscreen) { document.exitFullscreen(); }
+      else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+    }
+  }
+
+  document.addEventListener('fullscreenchange', () => {
+    setTimeout(() => {
+      if (mapAdmin) mapAdmin.invalidateSize();
+      if (mapForm) mapForm.invalidateSize();
+    }, 200);
+  });
+
+  function crearIcono(clase, texto) {
+    return L.divIcon({
+      className: 'marker-label',
+      html: `<div class="marker-circle ${clase}">${texto}</div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+      popupAnchor: [0, -15]
+    });
+  }
+
+  // MAPA DEL FORMULARIO DE PACIENTE
+  function initMapForm() {
+    const container = document.getElementById("mapaGoogle");
+    if (!container) return;
+
+    mapForm = L.map(container).setView([COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng], 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(mapForm);
+
+    markerForm = L.marker([COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng], { draggable: true }).addTo(mapForm);
+    actualizarInputsCoords(COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng);
+
+    markerForm.on('dragend', e => {
+      const pos = e.target.getLatLng();
+      actualizarInputsCoords(pos.lat, pos.lng);
+    });
+
+    mapForm.on('click', e => {
+      markerForm.setLatLng(e.latlng);
+      actualizarInputsCoords(e.latlng.lat, e.latlng.lng);
+    });
+
+    const inputBuscador = document.getElementById("pBuscarDir");
+    if (inputBuscador) {
+      inputBuscador.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          buscarDireccionTexto(inputBuscador.value);
+        }
+      });
+    }
+
+    setTimeout(() => mapForm.invalidateSize(), 200);
+  }
+
+  function ubicarEnMapa(lat, lng, zoom) {
+    if (!mapForm || !markerForm) return;
+    mapForm.setView([lat, lng], zoom || 15);
+    markerForm.setLatLng([lat, lng]);
+    actualizarInputsCoords(lat, lng);
+  }
+
+  async function buscarDireccionTexto(texto) {
+    texto = texto ? texto.trim() : '';
+    if (!texto) return;
+
+    const inputBuscador = document.getElementById("pBuscarDir");
+    if (inputBuscador) inputBuscador.disabled = true;
+
+    try {
+      const res = await callApi('buscarCoordenadas', { direccion: texto });
+      if (inputBuscador) inputBuscador.disabled = false;
+      if (res && res.exito) {
+        ubicarEnMapa(res.lat, res.lng);
+        mostrarAlerta('Ubicación encontrada: ' + res.direccionFormateada, 'success');
+      } else {
+        mostrarAlerta(res ? res.mensaje : 'No se pudo ubicar la dirección.', 'warning');
+      }
+    } catch (e) {
+      if (inputBuscador) inputBuscador.disabled = false;
+      mostrarAlerta('Error al consultar el servicio de geocodificación.', 'danger');
+    }
+  }
+
+  function actualizarInputsCoords(lat, lng) {
+    document.getElementById('pLat').value = typeof lat === 'number' ? lat.toFixed(6) : lat;
+    document.getElementById('pLng').value = typeof lng === 'number' ? lng.toFixed(6) : lng;
+  }
+
+  // MAPA DEL DASHBOARD
+  async function initMapAdmin() {
+    const containerAdmin = document.getElementById("mapaHospital");
+    if (!containerAdmin || mapAdmin) return;
+
+    mapAdmin = L.map(containerAdmin).setView([COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng], 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(mapAdmin);
+
+    markerHospital = L.marker([COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng], { icon: crearIcono('marker-hospital', 'H') })
+      .addTo(mapAdmin)
+      .bindPopup('<strong>Hospital Regional Daniel Alcides Carrión</strong><br><small>Av. Daniel Alcides Carrión 520A, Yanacancha, Pasco</small>');
+
+    const pacientes = await callApi('obtenerPacientes');
+    poblarFiltroPacientesRuta(pacientes || []);
+    setTimeout(() => mapAdmin.invalidateSize(), 200);
+  }
+
+  function poblarFiltroPacientesRuta(pacientes) {
+    const select = document.getElementById("selectPacienteRuta");
+    if (!select) return;
+
+    listaPacientesRuta = (pacientes || []).filter(p => p.latitud && p.longitud && !isNaN(parseFloat(p.latitud)));
+    select.innerHTML = '<option value="">-- Selecciona un paciente para ver su ubicación --</option>';
+
+    if (listaPacientesRuta.length === 0) {
+      select.options[0].text = "-- No hay pacientes con coordenadas registradas --";
+      return;
+    }
+
+    listaPacientesRuta.forEach((p, index) => {
+      const option = document.createElement("option");
+      option.value = index; 
+      option.text = `${p.nombre} (DNI: ${p.dni})`;
+      select.appendChild(option);
+    });
+
+    if (heatActivo) {
+      if (heatLayer) mapAdmin.removeLayer(heatLayer);
+      heatActivo = false;
+      toggleMapaCalor();
+    }
+  }
+
+  function limpiarRuta() {
+    if (markerPaciente) { mapAdmin.removeLayer(markerPaciente); markerPaciente = null; }
+    if (rutaLayer) { mapAdmin.removeLayer(rutaLayer); rutaLayer = null; }
+  }
+
+  async function calcularRutaPaciente() {
+    const indice = document.getElementById("selectPacienteRuta").value;
+    limpiarRuta();
+
+    if (indice === "") {
+      if (mapAdmin) mapAdmin.setView([COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng], 14);
+      return;
+    }
+
+    const paciente = listaPacientesRuta[indice];
+    const lat = parseFloat(paciente.latitud);
+    const lng = parseFloat(paciente.longitud);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      mostrarAlerta('Este paciente no tiene coordenadas válidas registradas.', 'warning');
+      return;
+    }
+
+    mostrarAlerta('Calculando ruta desde el Hospital hacia ' + paciente.nombre + '...', 'info');
+
+    try {
+      const res = await callApi('calcularRuta', { oLat: COORDENADAS_HOSPITAL.lat, oLng: COORDENADAS_HOSPITAL.lng, dLat: lat, dLng: lng });
+
+      if (!res || !res.exito) {
+        mostrarAlerta(res ? res.mensaje : 'No se pudo calcular la ruta.', 'warning');
+        markerPaciente = L.marker([lat, lng], { icon: crearIcono('marker-paciente', 'P') })
+          .addTo(mapAdmin)
+          .bindPopup(`<strong>${paciente.nombre}</strong><br>DNI: ${paciente.dni}`)
+          .openPopup();
+        mapAdmin.fitBounds(L.latLngBounds([[COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng], [lat, lng]]), { padding: [40, 40] });
+        return;
+      }
+
+      const coordsRuta = res.coordenadas.map(c => [c[1], c[0]]);
+      rutaLayer = L.polyline(coordsRuta, { color: '#0284c7', weight: 5, opacity: 0.9 }).addTo(mapAdmin);
+
+      markerPaciente = L.marker([lat, lng], { icon: crearIcono('marker-paciente', 'P') }).addTo(mapAdmin);
+
+      const contenidoHtml = `
+        <div style="font-family: sans-serif; min-width: 220px; padding: 2px;">
+          <h6 style="color: #0284c7; margin: 0 0 6px 0; font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">${paciente.nombre}</h6>
+          <div style="font-size: 12px; color: #334155;">
+            <p style="margin: 2px 0;"><strong>DNI:</strong> ${paciente.dni}</p>
+            <p style="margin: 2px 0;"><strong>Teléfono:</strong> ${paciente.telefono || 'N/A'}</p>
+            <p style="margin: 2px 0;"><strong>Email:</strong> ${paciente.email || 'N/A'}</p>
+            <div style="margin-top: 6px; background: #f1f5f9; padding: 6px; border-radius: 4px;">
+              <strong>Origen:</strong> Av. Daniel Alcides Carrión 520A<br>
+              <strong>Distancia:</strong> ${res.distanciaKm} km<br>
+              <strong>Tiempo Est.:</strong> ${res.duracionMin} min
+            </div>
+          </div>
+        </div>
+      `;
+      markerPaciente.bindPopup(contenidoHtml).openPopup();
+      mapAdmin.fitBounds(rutaLayer.getBounds(), { padding: [40, 40] });
+    } catch (e) {
+      mostrarAlerta('Error al calcular la ruta con el servicio gratuito.', 'danger');
+    }
+  }
+
+  function toggleMapaCalor() {
+    if (!mapAdmin) return;
+    const btn = document.getElementById('btnMapaCalor');
+
+    if (heatActivo) {
+      if (heatLayer) { mapAdmin.removeLayer(heatLayer); heatLayer = null; }
+      heatActivo = false;
+      btn.classList.remove('btn-danger');
+      btn.classList.add('btn-outline-danger');
+      return;
+    }
+
+    if (!listaPacientesRuta || listaPacientesRuta.length === 0) {
+      mostrarAlerta('No hay pacientes con coordenadas registradas para generar el mapa de calor.', 'warning');
+      return;
+    }
+
+    const puntos = listaPacientesRuta.map(p => [parseFloat(p.latitud), parseFloat(p.longitud), 0.8]);
+    heatLayer = L.heatLayer(puntos, {
+      radius: 30,
+      blur: 22,
+      maxZoom: 14,
+      gradient: { 0.2: '#0284c7', 0.5: '#f59e0b', 1.0: '#ef4444' }
+    }).addTo(mapAdmin);
+
+    heatActivo = true;
+    btn.classList.remove('btn-outline-danger');
+    btn.classList.add('btn-danger');
+    mostrarAlerta('Mapa de calor generado con ' + puntos.length + ' domicilio(s) de pacientes.', 'info');
+  }
+
+  function iniciarNavegacionGPS() {
+    const indice = document.getElementById('selectPacienteRuta').value;
+    if (indice === '') {
+      mostrarAlerta('Selecciona primero un paciente en la lista para iniciar la navegación.', 'warning');
+      return;
+    }
+
+    const paciente = listaPacientesRuta[indice];
+    const lat = parseFloat(paciente.latitud);
+    const lng = parseFloat(paciente.longitud);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      mostrarAlerta('Este paciente no tiene coordenadas válidas registradas.', 'warning');
+      return;
+    }
+
+    const origen = `${COORDENADAS_HOSPITAL.lat},${COORDENADAS_HOSPITAL.lng}`;
+    const destino = `${lat},${lng}`;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origen}&destination=${destino}&travelmode=driving`;
+    mostrarAlerta('Abriendo navegación GPS hacia el domicilio de ' + paciente.nombre + '...', 'info');
+    window.open(url, '_blank');
+  }
+
+  function mostrarAlerta(msj, tipo = 'success') {
+    const c = document.getElementById('contenedorAlertas');
+    c.innerHTML = `<div class="alert alert-${tipo} alert-dismissible fade show">${msj}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    setTimeout(() => c.innerHTML = '', 4000);
+  }
+
+  function navegar(sec, el) {
+    seccionActual = sec;
+    document.querySelectorAll('.seccion-modulo').forEach(s => s.classList.add('d-none'));
+    document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+    
+    document.getElementById(`sec-${sec}`).classList.remove('d-none');
+    if (el) el.classList.add('active');
+
+    const fnCargar = {
+      dashboard: cargarDashboard, citas: cargarCitas, pacientes: cargarPacientes,
+      medicos: cargarMedicos, historial: cargarHistorial, facturacion: cargarFacturacion,
+      triaje: cargarTriaje, inventario: cargarInventario, laboratorio: cargarLaboratorio,
+      hospitalizacion: cargarHospitalizacion, notificaciones: cargarNotificaciones
+    };
+    if (fnCargar[sec]) fnCargar[sec]();
+  }
+
+  async function cargarDashboard() {
+    const res = await callApi('obtenerEstadisticas');
+    if (!res) return;
+
+    document.getElementById('dash-pacientes').innerText = res.totalPacientes || 0;
+    document.getElementById('dash-medicos').innerText = res.totalMedicos || 0;
+    document.getElementById('dash-citas-pen').innerText = res.citasPendientes || 0;
+    document.getElementById('dash-ingresos').innerText = '$' + (res.totalIngresos || '0.00');
+    document.getElementById('dash-camas').innerText = res.camasOcupadas || 0;
+    document.getElementById('dash-lab').innerText = res.labPendientes || 0;
+
+    const ctxCitas = document.getElementById('graficoCitas');
+    if (ctxCitas) {
+      if (chartCitas) chartCitas.destroy();
+      chartCitas = new Chart(ctxCitas, {
+        type: 'doughnut',
+        data: { labels: ['Pendientes', 'Completadas', 'Canceladas'], datasets: [{ data: res.graficoCitas || [0,0,0], backgroundColor: ['#f59e0b', '#10b981', '#ef4444'] }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    const ctxIngresos = document.getElementById('graficoIngresos');
+    if (ctxIngresos) {
+      if (chartIngresos) chartIngresos.destroy();
+      chartIngresos = new Chart(ctxIngresos, {
+        type: 'bar',
+        data: { labels: ['Efectivo', 'Tarjeta', 'Transferencia'], datasets: [{ label: 'Ingresos ($)', data: res.graficoIngresos || [0,0,0], backgroundColor: '#0284c7' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+
+    let ulStock = document.getElementById('listaStockBajo');
+    if (ulStock) ulStock.innerHTML = (res.alertasStock && res.alertasStock.length) ? res.alertasStock.map(i => `<li class="list-group-item d-flex justify-content-between align-items-center">${i.item} <span class="badge bg-danger rounded-pill">${i.stock} un</span></li>`).join('') : '<li class="list-group-item text-muted">Stock adecuado</li>';
+
+    let ulLab = document.getElementById('listaLabProceso');
+    if (ulLab) ulLab.innerHTML = (res.alertasLab && res.alertasLab.length) ? res.alertasLab.map(l => `<li class="list-group-item small"><strong>${l.paciente}:</strong> ${l.examen} <span class="badge bg-info text-dark float-end">${l.estado}</span></li>`).join('') : '<li class="list-group-item text-muted">Sin pendientes</li>';
+
+    if (!mapAdmin) {
+      initMapAdmin();
+    } else {
+      const pacientes = await callApi('obtenerPacientes');
+      poblarFiltroPacientesRuta(pacientes || []);
+      setTimeout(() => mapAdmin.invalidateSize(), 200);
+    }
+  }
+
+  async function cargarCombos() {
+    const p = await callApi('obtenerPacientes');
+    if (p && Array.isArray(p)) {
+      let opts = '<option value="">Seleccionar paciente...</option>' + p.map(x => `<option value="${x.nombre}">${x.nombre} (${x.dni})</option>`).join('');
+      document.querySelectorAll('.sel-pacientes').forEach(s => s.innerHTML = opts);
+    }
+
+    const m = await callApi('obtenerMedicos');
+    if (m && Array.isArray(m)) {
+      let opts = '<option value="">Seleccionar médico...</option>' + m.map(x => `<option value="${x.nombre}">${x.nombre} - ${x.especialidad}</option>`).join('');
+      document.querySelectorAll('.sel-medicos').forEach(s => s.innerHTML = opts);
+    }
+  }
+
+  function renderTabla(idElemento, items, columnas) {
+    let tbody = document.getElementById(idElemento);
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-3">Sin registros actualmente.</td></tr>`;
+      return;
+    }
+    items.forEach(it => {
+      let tr = '<tr>' + columnas.map(col => `<td>${col(it)}</td>`).join('') + '</tr>';
+      tbody.innerHTML += tr;
+    });
+  }
+
+  function generarBotonesAccion(nombreHoja, id, idModal, tituloModal) {
+    return `
+      <button class="btn btn-sm btn-outline-warning me-1" title="Editar" onclick="abrirEditar('${nombreHoja}', '${id}', '${idModal}', '${tituloModal}')"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="confirmarEliminar('${nombreHoja}', '${id}')"><i class="fa-solid fa-trash"></i></button>
+    `;
+  }
+
+  async function buscarDniReniec(dni) {
+    dni = dni.trim();
+    if (dni.length === 8 && !isNaN(dni)) {
+      const inputNom = document.getElementById('pNom');
+      const valorPrevio = inputNom.value;
+      
+      inputNom.value = "Buscando en RENIEC...";
+      inputNom.disabled = true;
+
+      try {
+        const res = await callApi('consultarDni', { dni });
+        inputNom.disabled = false;
+        if (res && res.exito) {
+          inputNom.value = res.nombre;
+          mostrarAlerta('Datos de RENIEC cargados automáticamente.', 'success');
+        } else {
+          inputNom.value = valorPrevio;
+          mostrarAlerta(res ? res.mensaje : 'No se encontraron datos.', 'warning');
+        }
+      } catch (e) {
+        inputNom.disabled = false;
+        inputNom.value = valorPrevio;
+        mostrarAlerta('Error al consultar la API de RENIEC.', 'danger');
+      }
+    }
+  }
+
+  // --- CARGA DE TABLAS POR MÓDULOS ---
+  async function cargarCitas() {
+    const data = await callApi('obtenerCitas');
+    datosModulos['Citas'] = data || [];
+    renderTabla('tabla-citas', data || [], [
+      i => `<span class="badge bg-light text-dark border">${i.id}</span>`,
+      i => i.paciente, i => i.medico, i => i.fecha, i => i.hora,
+      i => `<span class="badge ${i.estado === 'Pendiente' ? 'bg-warning text-dark' : (i.estado === 'Completada' ? 'bg-success' : 'bg-danger')}">${i.estado}</span>`,
+      i => `
+        <button class="btn btn-sm btn-outline-success me-1" title="Enviar Recordatorio por WhatsApp" onclick="enviarWhatsAppCita('${i.paciente}', '${i.fecha}', '${i.hora}', '${i.medico}')"><i class="fa-brands fa-whatsapp fs-6"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Enviar Confirmación por Gmail" onclick="enviarCorreoCita('${i.id}')"><i class="fa-solid fa-envelope fs-6"></i></button>
+      `,
+      i => generarBotonesAccion('Citas', i.id, 'modalCita', 'Editar Cita')
+    ]);
+  }
+
+  async function cargarPacientes() { 
+    const d = await callApi('obtenerPacientes');
+    datosModulos['Pacientes'] = d || []; 
+    renderTabla('tabla-pacientes', d || [], [
+      i=>i.id, i=>i.nombre, i=>i.dni, i=>i.telefono, i=>i.email, 
+      i=> (i.latitud && i.longitud) ? `<small class="text-primary">${i.latitud}, ${i.longitud}</small>` : '<small class="text-muted">Sin ubicar</small>',
+      i=>generarBotonesAccion('Pacientes', i.id, 'modalPaciente', 'Editar Paciente')
+    ]); 
+  }
+
+  async function cargarMedicos() { const d = await callApi('obtenerMedicos'); datosModulos['Medicos'] = d || []; renderTabla('tabla-medicos', d || [], [i=>i.id, i=>i.nombre, i=>i.especialidad, i=>i.telefono, i=>generarBotonesAccion('Medicos', i.id, 'modalMedico', 'Editar Médico')]); }
+  async function cargarHistorial() { const d = await callApi('obtenerHistorial'); datosModulos['Historial'] = d || []; renderTabla('tabla-historial', d || [], [i=>i.id, i=>i.paciente, i=>i.medico, i=>i.fecha, i=>i.diagnostico, i=>i.tratamiento, i=>generarBotonesAccion('Historial', i.id, 'modalHistorial', 'Editar Historial')]); }
+  
+  async function cargarFacturacion() { 
+    const d = await callApi('obtenerFacturas');
+    datosModulos['Facturacion'] = d || []; 
+    renderTabla('tabla-facturacion', d || [], [
+      i=>i.id, i=>i.paciente, i=>i.concepto, i=>`$${i.monto}`, i=>i.metodo, 
+      i=>`<span class="badge ${i.estado === 'Pagado'?'bg-success':'bg-danger'}">${i.estado}</span>`, 
+      i=>i.fecha, 
+      i=>`
+        <button class="btn btn-sm btn-outline-primary me-1" title="Ver / Imprimir Boleta" onclick="verBoleta('${i.id}')"><i class="fa-solid fa-file-invoice"></i></button>
+        <button class="btn btn-sm btn-outline-success me-1" title="Enviar Comprobante por WhatsApp" onclick="enviarWhatsAppFactura('${i.paciente}', '${i.id}', '${i.monto}')"><i class="fa-brands fa-whatsapp"></i></button>
+        <button class="btn btn-sm btn-outline-warning me-1" title="Editar" onclick="abrirEditar('Facturacion', '${i.id}', 'modalFactura', 'Editar Factura')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="confirmarEliminar('Facturacion', '${i.id}')"><i class="fa-solid fa-trash"></i></button>
+      `
+    ]); 
+  }
+
+  async function cargarTriaje() { const d = await callApi('obtenerTriajes'); datosModulos['Triaje'] = d || []; renderTabla('tabla-triaje', d || [], [i=>i.id, i=>i.paciente, i=>i.presion, i=>`${i.temp} °C`, i=>`${i.peso} kg`, i=>`${i.sat}%`, i=>i.fecha, i=>generarBotonesAccion('Triaje', i.id, 'modalTriaje', 'Editar Triaje')]); }
+  async function cargarInventario() { const d = await callApi('obtenerInventario'); datosModulos['Inventario'] = d || []; renderTabla('tabla-inventario', d || [], [i=>i.id, i=>i.medicamento, i=>i.categoria, i=>i.stock, i=>`$${i.precio}`, i=>`<span class="badge ${i.estado === 'Disponible'?'bg-success':'bg-warning text-dark'}">${i.estado}</span>`, i=>generarBotonesAccion('Inventario', i.id, 'modalInventario', 'Editar Insumo')]); }
+  async function cargarLaboratorio() { const d = await callApi('obtenerLaboratorio'); datosModulos['Laboratorio'] = d || []; renderTabla('tabla-laboratorio', d || [], [i=>i.id, i=>i.paciente, i=>i.examen, i=>`<span class="badge ${i.estado === 'Completado'?'bg-success':'bg-warning text-dark'}">${i.estado}</span>`, i=>i.resultado, i=>i.fecha, i=>generarBotonesAccion('Laboratorio', i.id, 'modalLaboratorio', 'Editar Examen')]); }
+  async function cargarHospitalizacion() { const d = await callApi('obtenerHospitalizaciones'); datosModulos['Hospitalizacion'] = d || []; renderTabla('tabla-hospitalizacion', d || [], [i=>i.id, i=>i.paciente, i=>i.cama, i=>i.diagnostico, i=>`<span class="badge ${i.estado === 'Ocupada'?'bg-danger':'bg-success'}">${i.estado}</span>`, i=>i.fecha, i=>generarBotonesAccion('Hospitalizacion', i.id, 'modalHospitalizacion', 'Editar Ingreso')]); }
+
+  // --- MÓDULO DE NOTIFICACIONES ---
+  async function cargarNotificaciones() {
+    const data = await callApi('obtenerDatosNotificaciones');
+    datosModulos['Notificaciones'] = data || [];
+    renderTabla('tabla-notificaciones', data || [], [
+      i => `<strong>${i.nombre}</strong><br><small class="text-muted">${i.telefono || 'Sin tel.'} · ${i.email || 'Sin email'}</small>`,
+      i => i.proximaCita
+        ? `${i.proximaCita.fecha} ${i.proximaCita.hora}<br><small class="text-muted">Dr(a). ${i.proximaCita.medico}</small>`
+        : '<span class="text-muted">Sin citas pendientes</span>',
+      i => parseFloat(i.montoPendiente) > 0
+        ? `<span class="badge bg-danger">$${i.montoPendiente} pend.</span>`
+        : '<span class="badge bg-success">Al día</span>',
+      i => i.examenesPendientes.length
+        ? `<span class="badge bg-info text-dark">${i.examenesPendientes.length} pendiente(s)</span>`
+        : '<span class="text-muted">-</span>',
+      i => `
+        <button class="btn btn-sm btn-outline-success me-1" title="Notificar por WhatsApp" onclick="enviarWhatsAppPacienteNotif('${i.id}')"><i class="fa-brands fa-whatsapp"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Notificar por Gmail" onclick="enviarGmailPacienteNotif('${i.id}')"><i class="fa-solid fa-envelope"></i></button>
+      `
+    ]);
+  }
+
+  function construirMensajeNotificacion(item) {
+    let partes = [`Hola ${item.nombre}, le saluda MedControl Pro.`];
+    if (item.proximaCita) {
+      partes.push(`Le recordamos su cita el ${item.proximaCita.fecha} a las ${item.proximaCita.hora} con el Dr(a). ${item.proximaCita.medico}.`);
+    }
+    if (parseFloat(item.montoPendiente) > 0) {
+      partes.push(`Tiene un saldo pendiente de $${item.montoPendiente}.`);
+    }
+    if (item.examenesPendientes.length) {
+      partes.push(`Sus resultados de ${item.examenesPendientes.map(e => e.examen).join(', ')} están en proceso.`);
+    }
+    return partes.join(' ');
+  }
+
+  function enviarWhatsAppPacienteNotif(id) {
+    const item = (datosModulos['Notificaciones'] || []).find(x => x.id === id);
+    if (!item) return;
+    const telefono = item.telefono ? item.telefono.replace(/\D/g, '') : '';
+    if (!telefono) { mostrarAlerta('Este paciente no tiene teléfono registrado.', 'warning'); return; }
+
+    const texto = construirMensajeNotificacion(item);
+    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(texto)}`, '_blank');
+  }
+
+  async function enviarGmailPacienteNotif(id) {
+    const item = (datosModulos['Notificaciones'] || []).find(x => x.id === id);
+    if (!item) return;
+    if (!item.email) { mostrarAlerta('Este paciente no tiene correo registrado.', 'warning'); return; }
+
+    const mensaje = construirMensajeNotificacion(item) + '\n\nAtentamente,\nMedControl Pro';
+
+    mostrarAlerta('Enviando correo a ' + item.nombre + '...', 'info');
+    try {
+      const res = await callApi('enviarGmailPaciente', { pacienteId: id, asunto: 'Notificación MedControl Pro', mensaje: mensaje });
+      mostrarAlerta(res.mensaje, res.exito ? 'success' : 'danger');
+    } catch (e) {
+      mostrarAlerta('Error de conexión al enviar el correo.', 'danger');
+    }
+  }
+
+  // --- FUNCIONES DE NOTIFICACIÓN (módulo Citas) ---
+  function enviarWhatsAppCita(paciente, fecha, hora, medico) {
+    const p = (datosModulos['Pacientes'] || []).find(x => x.nombre === paciente);
+    const telefono = p && p.telefono ? p.telefono.replace(/\D/g, '') : '';
+    const texto = encodeURIComponent(`Hola ${paciente}, le recordamos su cita médica programada en MedControl Pro el ${fecha} a las ${hora} con el Dr(a). ${medico}. Por favor confirmar su asistencia.`);
+    window.open(`https://wa.me/${telefono}?text=${texto}`, '_blank');
+  }
+
+  function enviarWhatsAppFactura(paciente, idFactura, monto) {
+    const p = (datosModulos['Pacientes'] || []).find(x => x.nombre === paciente);
+    const telefono = p && p.telefono ? p.telefono.replace(/\D/g, '') : '';
+    const texto = encodeURIComponent(`Hola ${paciente}, adjuntamos la confirmación del comprobante ${idFactura} de MedControl Pro por un monto de $${monto}. ¡Gracias por preferirnos!`);
+    window.open(`https://wa.me/${telefono}?text=${texto}`, '_blank');
+  }
+
+  async function enviarCorreoCita(idCita) {
+    mostrarAlerta('Enviando correo de confirmación por Gmail...', 'info');
+    try {
+      const res = await callApi('enviarGmail', { idCita });
+      mostrarAlerta(res.mensaje, res.exito ? 'success' : 'danger');
+    } catch (e) {
+      mostrarAlerta('Error de conexión al enviar el correo.', 'danger');
+    }
+  }
+
+  // --- CRUD Y MODALES ---
+  function abrirNuevo(idModal, titulo) {
+    idEditando = null;
+    const modalEl = document.getElementById(idModal);
+    modalEl.querySelector('.modal-title').innerText = titulo;
+    const form = modalEl.querySelector('form');
+    if (form) form.reset();
+    
+    const pNom = document.getElementById('pNom');
+    if (pNom) pNom.disabled = false;
+
+    if (idModal === 'modalPaciente') {
+      const pBuscar = document.getElementById('pBuscarDir');
+      if (pBuscar) pBuscar.value = '';
+
+      if (mapForm && markerForm) {
+        mapForm.setView([COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng], 14);
+        markerForm.setLatLng([COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng]);
+        actualizarInputsCoords(COORDENADAS_HOSPITAL.lat, COORDENADAS_HOSPITAL.lng);
+      }
+    }
+
+    const bsModal = new bootstrap.Modal(modalEl);
+    bsModal.show();
+  }
+
+  function abrirEditar(nombreHoja, id, idModal, titulo) {
+    idEditando = id;
+    const item = (datosModulos[nombreHoja] || []).find(x => x.id === id);
+    if (!item) return;
+
+    const modalEl = document.getElementById(idModal);
+    modalEl.querySelector('.modal-title').innerText = titulo;
+
+    if (nombreHoja === 'Pacientes') {
+      document.getElementById('pNom').value = item.nombre || '';
+      document.getElementById('pDni').value = item.dni || '';
+      document.getElementById('pTel').value = item.telefono || '';
+      document.getElementById('pEma').value = item.email || '';
+      document.getElementById('pLat').value = item.latitud || '';
+      document.getElementById('pLng').value = item.longitud || '';
+      
+      const pBuscar = document.getElementById('pBuscarDir');
+      if (pBuscar) pBuscar.value = '';
+
+      if (mapForm && markerForm && item.latitud && item.longitud) {
+        const lat = parseFloat(item.latitud);
+        const lng = parseFloat(item.longitud);
+        mapForm.setView([lat, lng], 15);
+        markerForm.setLatLng([lat, lng]);
+      }
+    } else if (nombreHoja === 'Medicos') {
+      document.getElementById('mNom').value = item.nombre || '';
+      document.getElementById('mEsp').value = item.especialidad || '';
+      document.getElementById('mTel').value = item.telefono || '';
+    } else if (nombreHoja === 'Citas') {
+      document.getElementById('cPac').value = item.paciente || '';
+      document.getElementById('cMed').value = item.medico || '';
+      document.getElementById('cFec').value = item.fecha || '';
+      document.getElementById('cHor').value = item.hora || '';
+      document.getElementById('cEst').value = item.estado || 'Pendiente';
+      document.getElementById('cMot').value = item.motivo || '';
+    } else if (nombreHoja === 'Historial') {
+      document.getElementById('hPac').value = item.paciente || '';
+      document.getElementById('hMed').value = item.medico || '';
+      document.getElementById('hDia').value = item.diagnostico || '';
+      document.getElementById('hTra').value = item.tratamiento || '';
+      document.getElementById('hNot').value = item.notas || '';
+    } else if (nombreHoja === 'Facturacion') {
+      document.getElementById('fPac').value = item.paciente || '';
+      document.getElementById('fCon').value = item.concepto || '';
+      document.getElementById('fMon').value = item.monto || '';
+      document.getElementById('fMet').value = item.metodo || '';
+      document.getElementById('fEst').value = item.estado || '';
+    } else if (nombreHoja === 'Triaje') {
+      document.getElementById('tPac').value = item.paciente || '';
+      document.getElementById('tPre').value = item.presion || '';
+      document.getElementById('tTem').value = item.temp || '';
+      document.getElementById('tPes').value = item.peso || '';
+      document.getElementById('tTal').value = item.talla || '';
+      document.getElementById('tSat').value = item.sat || '';
+    } else if (nombreHoja === 'Inventario') {
+      document.getElementById('iMed').value = item.medicamento || '';
+      document.getElementById('iCat').value = item.categoria || '';
+      document.getElementById('iSto').value = item.stock || '';
+      document.getElementById('iPre').value = item.precio || '';
+    } else if (nombreHoja === 'Laboratorio') {
+      document.getElementById('lPac').value = item.paciente || '';
+      document.getElementById('lExa').value = item.examen || '';
+      document.getElementById('lEst').value = item.estado || '';
+      document.getElementById('lRes').value = item.resultado || '';
+    } else if (nombreHoja === 'Hospitalizacion') {
+      document.getElementById('hspPac').value = item.paciente || '';
+      document.getElementById('hspCam').value = item.cama || '';
+      document.getElementById('hspDia').value = item.diagnostico || '';
+      document.getElementById('hspEst').value = item.estado || '';
+    }
+
+    const bsModal = new bootstrap.Modal(modalEl);
+    bsModal.show();
+  }
+
+  async function guardarForm(e, funcionGS, nombreHoja, idModal) {
+    e.preventDefault();
+    const modalEl = document.getElementById(idModal);
+    const inputs = modalEl.querySelectorAll('input, select, textarea');
+    let datos = {};
+    inputs.forEach(inp => { if (inp.id) datos[inp.id] = inp.value; });
+    
+    if (idEditando) datos.id = idEditando;
+
+    try {
+      const res = await callApi(funcionGS, datos);
+      bootstrap.Modal.getInstance(modalEl).hide();
+      mostrarAlerta(res.mensaje, res.exito ? 'success' : 'danger');
+      idEditando = null;
+      cargarDashboard();
+      cargarCombos();
+      navegar(seccionActual);
+    } catch (e) {
+      mostrarAlerta('Error al guardar el registro.', 'danger');
+    }
+  }
+
+  async function confirmarEliminar(nombreHoja, id) {
+    if (confirm(`¿Estás seguro de que deseas eliminar el registro ${id}?`)) {
+      try {
+        const res = await callApi('eliminarRegistro', { hoja: nombreHoja, id });
+        mostrarAlerta(res.mensaje, res.exito ? 'success' : 'danger');
+        cargarDashboard();
+        cargarCombos();
+        navegar(seccionActual);
+      } catch (e) {
+        mostrarAlerta('Error al eliminar el registro.', 'danger');
+      }
+    }
+  }
+
+  function verBoleta(id) {
+    const item = (datosModulos['Facturacion'] || []).find(x => x.id === id);
+    if (!item) return;
+
+    document.getElementById('bolId').innerText = item.id;
+    document.getElementById('bolFecha').innerText = item.fecha || '-';
+    document.getElementById('bolPaciente').innerText = item.paciente || '-';
+    document.getElementById('bolMetodo').innerText = item.metodo || '-';
+    document.getElementById('bolConcepto').innerText = item.concepto || '-';
+    document.getElementById('bolMontoTabla').innerText = '$' + (parseFloat(item.monto) || 0).toFixed(2);
+    document.getElementById('bolMontoTotal').innerText = (parseFloat(item.monto) || 0).toFixed(2);
+
+    const bsModal = new bootstrap.Modal(document.getElementById('modalBoleta'));
+    bsModal.show();
+  }
+
+  function imprimirBoleta() {
+    window.print();
+  }
+</script>
+
+</body>
+</html>
